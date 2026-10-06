@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Operativo - Salud Ocupacional</title>
+    
+    <!-- Librerías Seguras y Verificadas -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    
+    <!-- Librerías para Exportar -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/libs/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs@3.12.0/dist/pptxgen.min.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #F1F5F9; }
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #64748B; border-radius: 10px; }
+        .input-trigger, .text-trigger, select { transition: border-color 0.2s; }
+        .input-trigger:focus, .text-trigger:focus, select:focus { border-color: #3B82F6; outline: none; }
+        
+        .chart-wrapper { position: relative; height: 210px; width: 100%; }
+        #export-area { background-color: #F8FAFC; }
+        
+        .export-card { page-break-inside: avoid !important; break-inside: avoid !important; margin-bottom: 12px; }
+        
+        @media print {
+            @page { size: landscape; margin: 10mm; }
+            .no-print { display: none !important; }
+            .print-full { width: 100% !important; height: auto !important; margin: 0 !important; padding: 0 !important; }
+            body { background-color: white; }
+            .shadow-sm { box-shadow: none !important; border: 1px solid #E2E8F0; }
+            .export-card { border: 1px solid #E2E8F0; box-shadow: none !important; margin-bottom: 20px; page-break-inside: avoid !important; }
+            .chart-wrapper { height: 230px !important; }
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden text-slate-800">
+
+    <!-- MENÚ LATERAL: CAPTURA -->
+    <aside class="w-[360px] flex-shrink-0 flex flex-col h-screen bg-slate-900 text-slate-300 z-20 shadow-xl no-print">
+        <div class="p-4 border-b border-slate-700 bg-slate-950 flex flex-col justify-center items-start">
+            
+            <!-- LOGO CON CARGA DINÁMICA GENÉRICA -->
+            <div class="relative group cursor-pointer mb-2 w-[160px]" onclick="document.getElementById('logoInput').click()" title="Haz clic para cargar el Logo">
+                <img id="logoPlanta" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" alt="Logo" class="w-full h-auto object-contain bg-white p-2 rounded-lg shadow-md min-h-[60px]">
+                <div class="absolute inset-0 bg-slate-900 bg-opacity-80 hidden group-hover:flex items-center justify-center rounded-lg border-2 border-blue-400">
+                    <span class="text-white text-[10px] font-bold text-center">Clic para cargar<br>Logo</span>
+                </div>
+                <input type="file" id="logoInput" class="hidden" accept="image/png, image/jpeg" onchange="cargarLogoMemoria(event)">
+            </div>
+            
+            <p class="text-[9px] uppercase font-bold text-slate-400 tracking-widest mb-3">Salud Ocupacional - Operativo</p>
+            
+            <div class="p-2 bg-slate-800 rounded border border-slate-600 mb-2 w-full">
+                <p class="text-[10px] font-bold text-emerald-400 mb-1">1. Capturando datos de:</p>
+                <div class="flex space-x-1 mb-2">
+                    <select id="capMes" onchange="cargarMesCaptura()" class="w-1/2 p-1 rounded bg-slate-900 text-white text-[11px] border border-slate-500">
+                        <option value="01">Enero</option><option value="02">Febrero</option><option value="03">Marzo</option><option value="04">Abril</option><option value="05">Mayo</option><option value="06">Junio</option><option value="07">Julio</option><option value="08">Agosto</option><option value="09">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+                    </select>
+                    <select id="capAno" onchange="cargarMesCaptura()" class="w-1/2 p-1 rounded bg-slate-900 text-white text-[11px] border border-slate-500"></select>
+                </div>
+                <button id="btnGuardar" onclick="guardarDatos()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold py-1.5 rounded shadow transition">
+                    💾 Guardar Datos / Actualizar
+                </button>
+                
+                <!-- BOTONES JSON: EXPORTAR E IMPORTAR (Para Supervisión) -->
+                <div class="flex space-x-1 mt-2">
+                    <button onclick="exportarJSON()" class="w-1/2 bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold py-1.5 rounded shadow transition" title="Descarga archivo para enviar a Gerencia">
+                        📤 Exportar
+                    </button>
+                    <button onclick="document.getElementById('importJsonInput').click()" class="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold py-1.5 rounded shadow transition" title="Cargar datos JSON de otra planta">
+                        📥 Importar
+                    </button>
+                    <input type="file" id="importJsonInput" accept=".json" class="hidden" onchange="importarJSON(event)">
+                </div>
+            </div>
+            <p id="txtAlertaGuardar" class="text-[9px] text-red-400 font-bold text-center hidden">⚠️ Vista Acumulada. (Guardado Bloqueado)</p>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-2 space-y-2 pb-24 text-[11px]">
+            
+            <!-- DATOS PLANTA Y METAS -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-emerald-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>👥 Datos de Planta y Metas</span><span>▼</span>
+                </summary>
+                <div class="p-2 space-y-2 border-t border-slate-700 bg-slate-800/50">
+                    <div><label>Total Plantilla Activa (Headcount)</label><input type="number" id="inPlantilla" value="450" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                    <div><label>Prima de Riesgo Actual (%)</label><input type="number" step="0.01" id="inPrimaBase" value="2.53" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger" title="Para proyectar porcentaje de reducción"></div>
+                </div>
+            </details>
+
+            <!-- REGISTRO CLÍNICO -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-blue-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>⚕️ Registro Clínico</span><span>▼</span>
+                </summary>
+                <div class="p-2 border-t border-slate-700 bg-slate-800/50">
+                    <div class="grid grid-cols-2 gap-1 mb-2">
+                        <div class="col-span-2 font-bold text-blue-300 border-b border-slate-700 pb-1">Totales de Consulta</div>
+                        <div><label>1ra Vez</label><input type="number" id="reg1ra" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Subsecuentes</label><input type="number" id="regSub" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div class="col-span-2"><label>Primeros Auxilios</label><input type="number" id="regPa" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 pt-2 border-t border-slate-700">
+                        <div class="col-span-2 font-bold text-slate-400 border-b border-slate-700 pb-1">Morbilidad por Aparatos y Sistemas</div>
+                        <div><label>Oftálmico</label><input type="number" id="sysOft" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Respiratorio</label><input type="number" id="sysRes" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Digestivo</label><input type="number" id="sysDig" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Vascular</label><input type="number" id="sysVas" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Crónico</label><input type="number" id="sysCro" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Neurológico</label><input type="number" id="sysNeu" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Dental</label><input type="number" id="sysDen" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>M. Esquelético</label><input type="number" id="sysMus" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Ginecológico</label><input type="number" id="sysGin" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Dermatológico</label><input type="number" id="sysDer" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Urinario</label><input type="number" id="sysUri" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Otros</label><input type="number" id="sysOtr" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- EMI, EMP Y POES -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-purple-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>📋 EMI, EMP y POES</span><span>▼</span>
+                </summary>
+                <div class="p-2 bg-slate-800/50">
+                    <div class="border-b border-slate-700 pb-2 mb-2">
+                        <p class="font-bold text-slate-400 mb-1">Exámenes de Ingreso (EMI)</p>
+                        <div class="grid grid-cols-3 gap-1">
+                            <div class="col-span-3"><label class="text-purple-300 font-bold">Total EMI</label><input type="number" id="emiTot" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-purple-500 input-trigger"></div>
+                            <div><label class="text-emerald-400">Aptos</label><input type="number" id="emiApt" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-amber-400">c/ Restr.</label><input type="number" id="emiRes" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-red-400">No Aptos</label><input type="number" id="emiNo" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        </div>
+                    </div>
+                    <div class="border-b border-slate-700 pb-2 mb-2">
+                        <p class="font-bold text-slate-400 mb-1">Exámenes Periódicos (EMP)</p>
+                        <div class="grid grid-cols-2 gap-1">
+                            <div><label>Programados</label><input type="number" id="empProg" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Realizados</label><input type="number" id="empReal" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <p class="font-bold text-purple-300 mb-1">Exposición (POES)</p>
+                        <div class="grid grid-cols-2 gap-1">
+                            <div><label>Eval. Visual</label><input type="number" id="poeVis" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Riesgo Cardio</label><input type="number" id="poeCar" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>B. Hemática</label><input type="number" id="poeBh" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Glucosa Cap.</label><input type="number" id="poeGlu" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Colest/Trig</label><input type="number" id="poeCol" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Uroanálisis</label><input type="number" id="poeUro" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Antidoping</label><input type="number" id="poeDop" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Rx Tórax AP</label><input type="number" id="poeRxt" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Rx Columna</label><input type="number" id="poeRxc" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Campimetrías</label><input type="number" id="poeCam" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Audiometría</label><input type="number" id="poeAud" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Espirometría</label><input type="number" id="poeEsp" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Electrocard.</label><input type="number" id="poeEkg" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div><label>Val. Postural</label><input type="number" id="poePos" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                            <div class="col-span-2 flex space-x-1 mt-1">
+                                <input type="text" id="poeOtraNom" placeholder="Nombre Estudio..." class="w-2/3 p-1 rounded bg-slate-900 text-white border border-slate-600 text-trigger">
+                                <input type="number" id="poeOtraVal" value="0" class="w-1/3 p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- INCAPACIDADES Y RESTRICCIONES -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-orange-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>🤕 Incapacidades y Restricciones</span><span>▼</span>
+                </summary>
+                <div class="p-2 border-t border-slate-700 bg-slate-800/50">
+                    <div class="grid grid-cols-2 gap-1 mb-2">
+                        <div class="col-span-2 font-bold text-slate-400 border-b border-slate-700 pb-1">Incapacidad Enf. General</div>
+                        <div><label>Recibidas</label><input type="number" id="egRec" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Días Acumulados</label><input type="number" id="egDias" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 mb-2 border-t border-slate-700 pt-2">
+                        <div class="col-span-2 font-bold text-slate-400 border-b border-slate-700 pb-1">Incapacidad Maternidad</div>
+                        <div><label>Recibidas</label><input type="number" id="matRec" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Días Acumulados</label><input type="number" id="matDias" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-1 border-t border-slate-700 pt-2">
+                        <div class="col-span-2 font-bold text-orange-300 border-b border-slate-700 pb-1">Restricciones Laborales Internas</div>
+                        <div><label>Casos</label><input type="number" id="resCasos" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-orange-500 input-trigger"></div>
+                        <div><label>Días Restricción</label><input type="number" id="resDias" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-orange-500 input-trigger"></div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- RIESGOS ST (IMSS) -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-red-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>🚨 Riesgos ST (IMSS)</span><span>▼</span>
+                </summary>
+                <div class="p-2 border-t border-slate-700 bg-slate-800/50">
+                    <div class="grid grid-cols-5 gap-1 mb-2 text-center text-[9px] text-slate-400 font-bold">
+                        <div>Tipo</div><div>Recib</div><div>Días</div><div>Cal. Si</div><div>Cal. No</div>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1 mb-2 items-center">
+                        <div class="text-[9px] font-bold text-slate-300">ST-7 Tray.</div>
+                        <input type="number" id="st7tyRec" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger">
+                        <input type="number" id="st7tyDias" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger">
+                        <input type="number" id="st7tySi" value="0" class="w-full p-1 rounded bg-slate-900 border border-slate-600 text-emerald-400 input-trigger text-center">
+                        <input type="number" id="st7tyNo" value="0" class="w-full p-1 rounded bg-slate-900 border border-slate-600 text-red-400 input-trigger text-center" title="Formatos NO Calificados (Contenidos)">
+                    </div>
+                    <div class="grid grid-cols-5 gap-1 mb-2 items-center">
+                        <div class="text-[9px] font-bold text-slate-300">ST-7 Trab.</div>
+                        <input type="number" id="st7trRec" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger">
+                        <input type="number" id="st7trDias" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger">
+                        <input type="number" id="st7trSi" value="0" class="w-full p-1 rounded bg-slate-900 border border-slate-600 text-emerald-400 input-trigger text-center">
+                        <input type="number" id="st7trNo" value="0" class="w-full p-1 rounded bg-slate-900 border border-slate-600 text-red-400 input-trigger text-center" title="Formatos NO Calificados (Contenidos)">
+                    </div>
+                    <div class="grid grid-cols-5 gap-1 items-center">
+                        <div class="text-[9px] font-bold text-slate-300">ST-9 Enf.</div>
+                        <input type="number" id="st9Rec" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger">
+                        <input type="number" id="st9Dias" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger">
+                        <input type="number" id="st9Si" value="0" class="w-full p-1 rounded bg-slate-900 border border-slate-600 text-emerald-400 input-trigger text-center">
+                        <input type="number" id="st9No" value="0" class="w-full p-1 rounded bg-slate-900 border border-slate-600 text-red-400 input-trigger text-center" title="Formatos NO Calificados (Contenidos)">
+                    </div>
+                </div>
+            </details>
+
+            <!-- ACCIDENTES INTERNOS -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-red-500 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>⚠️ Accidentes (Internos)</span><span>▼</span>
+                </summary>
+                <div class="p-2 border-t border-slate-700 bg-slate-800/50">
+                    <label class="font-bold text-red-300">Total Accidentes (Mes)</label>
+                    <input type="number" id="accTot" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-red-500 input-trigger mb-2">
+                    
+                    <div class="bg-slate-900 p-2 rounded border border-slate-700">
+                        <p class="font-bold text-[10px] mb-1 text-slate-400">Registrar para la Gráfica:</p>
+                        <input type="text" id="addAccArea" placeholder="Área (Ej. Ensamble)" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-trigger">
+                        <input type="text" id="addAccDep" placeholder="Depto (Ej. Producción)" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-trigger">
+                        <input type="text" id="addAccPto" placeholder="Puesto (Ej. Operador)" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-trigger">
+                        <select id="addAccTur" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-trigger">
+                            <option value="1er Turno">1er Turno</option><option value="2do Turno">2do Turno</option><option value="3er Turno">3er Turno</option><option value="Mixto">Mixto / Admin</option>
+                        </select>
+                        <button onclick="addAcc()" class="w-full bg-red-600 text-white p-1 rounded font-bold hover:bg-red-500">+ Añadir a Gráfica</button>
+                    </div>
+                    <ul id="listAcc" class="mt-2 space-y-1 max-h-24 overflow-y-auto"></ul>
+                </div>
+            </details>
+
+            <!-- ENF CRONICAS -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-pink-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>❤️ Crónica y Maternidad</span><span>▼</span>
+                </summary>
+                <div class="p-2 bg-slate-800/50">
+                    <div class="grid grid-cols-2 gap-1 border-t border-slate-700 pt-2 mb-2">
+                        <div class="col-span-2 font-bold text-slate-400 border-b border-slate-700 pb-1">Epidemiología Base</div>
+                        <div><label>DM2 (Activos)</label><input type="number" id="croDmAct" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label class="text-pink-300">Nuevos DM2</label><input type="number" id="croDmNue" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-pink-500 input-trigger"></div>
+                        
+                        <div><label>HAS (Activos)</label><input type="number" id="croHasAct" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label class="text-pink-300">Nuevos HAS</label><input type="number" id="croHasNue" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-pink-500 input-trigger"></div>
+                    </div>
+                    
+                    <div class="bg-slate-900 p-2 rounded border border-slate-700 mb-2">
+                        <p class="font-bold text-[10px] mb-1">Añadir Otra Enf. Crónica:</p>
+                        <input type="text" id="addCroNom" placeholder="Nombre (Ej. Tiroidea)" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-trigger">
+                        <div class="grid grid-cols-2 gap-1 mb-1">
+                            <div><label class="text-[8px]">Casos Activos</label><input type="number" id="addCroAct" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-[8px] text-pink-300">Nuevos Casos</label><input type="number" id="addCroNue" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                        </div>
+                        <button onclick="addCro()" class="w-full bg-pink-600 text-white p-1 rounded font-bold hover:bg-pink-500">+ Añadir a Gráfica</button>
+                    </div>
+                    <ul id="listCro" class="mt-1 mb-2 space-y-1 max-h-20 overflow-y-auto"></ul>
+
+                    <div class="grid grid-cols-2 gap-1 border-t border-slate-700 pt-2">
+                        <div class="col-span-2 font-bold text-slate-400 border-b border-slate-700 pb-1">Maternidad Base</div>
+                        <div><label>Gestantes Activas</label><input type="number" id="croGesAct" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label class="text-pink-300">Nuevas Gestantes</label><input type="number" id="croGesNue" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-pink-500 input-trigger"></div>
+                        
+                        <div><label>Lactantes Activas</label><input type="number" id="croLacAct" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label class="text-pink-300">Nuevas Lactantes</label><input type="number" id="croLacNue" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-pink-500 input-trigger"></div>
+                    </div>
+                </div>
+            </details>
+
+            <!-- RIESGOS PSICOSOCIALES NOM-035 -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-indigo-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>🧠 Riesgos Psicosociales (035)</span><span>▼</span>
+                </summary>
+                <div class="p-2 bg-slate-800/50">
+                    <div class="bg-slate-900 p-2 rounded border border-slate-700 mb-2">
+                        <p class="font-bold text-[10px] mb-1">Añadir Patología Psicosocial:</p>
+                        <select id="addPsiSel" onchange="checkPsiOtr()" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-[10px] text-trigger">
+                            <option value="Ansiedad">Ansiedad</option><option value="Depresión">Depresión</option><option value="Burnout">Síndrome Burnout</option><option value="Acoso/Bullying">Acoso/Bullying</option><option value="ATS">ATS (Acont. Traumático Sev.)</option><option value="Trastorno Sueño">Trastorno Sueño</option><option value="Estrés Grave">Estrés Grave</option><option value="Otro">Otro (Especificar)</option>
+                        </select>
+                        <input type="text" id="addPsiOtr" placeholder="Especificar..." class="hidden w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-[10px] text-trigger">
+                        
+                        <div class="grid grid-cols-4 gap-1 mb-1">
+                            <div><label class="text-[8px]">Activos</label><input type="number" id="addPsiAct" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-[8px] text-indigo-300">Nuevos</label><input type="number" id="addPsiNue" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-[8px] text-orange-300" title="Casos Relacionados al Trabajo">Rel.Trab.</label><input type="number" id="addPsiRel" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-[8px] text-red-300" title="Casos que requirieron Restricción">Restr.</label><input type="number" id="addPsiRes" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                        </div>
+                        <button onclick="addPsi()" class="w-full bg-indigo-600 text-white p-1 rounded font-bold hover:bg-indigo-500 mt-1">+ Añadir</button>
+                    </div>
+                    <ul id="listPsi" class="mt-1 space-y-1 max-h-20 overflow-y-auto"></ul>
+                </div>
+            </details>
+
+            <!-- RIESGOS ERGONOMICOS NOM-036 -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-teal-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>🦴 Riesgos Ergonómicos (036)</span><span>▼</span>
+                </summary>
+                <div class="p-2 bg-slate-800/50">
+                    <div class="bg-slate-900 p-2 rounded border border-slate-700 mb-2">
+                        <p class="font-bold text-[10px] mb-1">Añadir Trastorno M.E.:</p>
+                        <select id="addErgSel" onchange="checkErgOtr()" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-[10px] text-trigger">
+                            <option value="Lumbalgia">Lumbalgia</option><option value="Túnel Carpiano">S. Túnel Carpiano</option><option value="Tendinitis">Tendinitis</option><option value="Epicondilitis">Epicondilitis</option><option value="Cervicalgia">Cervicalgia</option><option value="Fatiga Muscular">Fatiga Muscular</option><option value="Otro">Otro (Especificar)</option>
+                        </select>
+                        <input type="text" id="addErgOtr" placeholder="Especificar..." class="hidden w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-[10px] text-trigger">
+                        
+                        <div class="grid grid-cols-4 gap-1 mb-1">
+                            <div><label class="text-[8px]">Activos</label><input type="number" id="addErgAct" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-[8px] text-teal-300">Nuevos</label><input type="number" id="addErgNue" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-[8px] text-orange-300" title="Casos Relacionados al Trabajo">Rel.Trab.</label><input type="number" id="addErgRel" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            <div><label class="text-[8px] text-red-300" title="Casos que requirieron Restricción">Restr.</label><input type="number" id="addErgRes" placeholder="0" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                        </div>
+                        <button onclick="addErg()" class="w-full bg-teal-600 text-white p-1 rounded font-bold hover:bg-teal-500 mt-1">+ Añadir</button>
+                    </div>
+                    <ul id="listErg" class="mt-1 space-y-1 max-h-20 overflow-y-auto"></ul>
+                </div>
+            </details>
+
+            <!-- NUTRICION / COMEDOR -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group">
+                <summary class="p-2 font-semibold text-lime-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>🍏 Nutrición y Comedor</span><span>▼</span>
+                </summary>
+                <div class="p-2 border-t border-slate-700 bg-slate-800/50">
+                    <div class="grid grid-cols-2 gap-1 mb-2">
+                        <div><label>Consultas Nutrición</label><input type="number" id="nutCon" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Planes Entregados</label><input type="number" id="nutPla" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 mb-2 border-y border-slate-700 py-2">
+                        <div><label>Obesidad</label><input type="number" id="nutObe" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Sobrepeso</label><input type="number" id="nutSob" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                        <div><label>Dislipidemias</label><input type="number" id="nutDis" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-slate-600 input-trigger"></div>
+                    </div>
+                    <div>
+                        <label class="font-bold text-lime-300">Auditorías a Comedor (Realizadas)</label>
+                        <input type="number" id="comNum" value="0" class="w-full p-1 rounded bg-slate-900 text-white border border-lime-500 input-trigger">
+                    </div>
+                </div>
+            </details>
+
+            <!-- GESTIÓN EHS -->
+            <details class="bg-slate-800 border border-slate-700 rounded-lg group mb-10">
+                <summary class="p-2 font-semibold text-yellow-400 cursor-pointer flex justify-between hover:bg-slate-700 rounded-lg">
+                    <span>🛡️ Gestión EHS</span><span>▼</span>
+                </summary>
+                <div class="p-2 border-t border-slate-700 bg-slate-800/50 space-y-2">
+                    
+                    <!-- Permisos de Trabajo -->
+                    <div class="border-b border-slate-700 pb-2">
+                        <p class="font-bold text-slate-400 mb-1">Permisos de Trabajo Liberados</p>
+                        <div class="bg-slate-900 p-2 rounded border border-slate-700">
+                            <div class="flex space-x-1 mb-1">
+                                <select id="addPerTipo" class="w-1/2 p-1 rounded bg-slate-800 text-white border border-slate-600 text-trigger">
+                                    <option value="Alturas">T. Alturas</option><option value="Caliente">T. Caliente</option><option value="Confinado">E. Confinado</option><option value="Eléctrico">R. Eléctrico</option><option value="LOTO">LOTO (Energías)</option><option value="Otro">Otro</option>
+                                </select>
+                                <input type="number" id="addPerCan" placeholder="Permisos" class="w-1/4 p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger" title="Total de Permisos Liberados">
+                                <input type="number" id="addPerEval" placeholder="Pers. Eval." class="w-1/4 p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger" title="Personas Evaluadas Médicamente">
+                            </div>
+                            <button onclick="addPer()" class="w-full bg-blue-600 text-white p-1 rounded font-bold hover:bg-blue-500">+ Añadir Permiso</button>
+                        </div>
+                        <ul id="listPer" class="mt-1 space-y-1 max-h-16 overflow-y-auto"></ul>
+                    </div>
+                    
+                    <!-- Auditorias Externas -->
+                    <div class="border-b border-slate-700 pb-2">
+                        <p class="font-bold text-slate-400 mb-1">Auditorías Externas Atendidas</p>
+                        <div class="bg-slate-900 p-2 rounded border border-slate-700">
+                            <select id="addAudEnt" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-trigger">
+                                <option value="STPS">STPS</option><option value="ISO 45001">ISO 45001</option><option value="ISO 14001">ISO 14001</option><option value="IMSS">IMSS</option><option value="COFEPRIS">COFEPRIS</option><option value="Protección Civil">Protección Civil</option><option value="Otra">Otra</option>
+                            </select>
+                            <div class="grid grid-cols-3 gap-1 mb-1">
+                                <div><label class="text-[8px]">Tot. Hzg</label><input type="number" id="addAudHal" placeholder="Tot" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                                <div><label class="text-[8px] text-red-400">Mayores</label><input type="number" id="addAudMay" placeholder="May" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                                <div><label class="text-[8px] text-amber-400">Menores</label><input type="number" id="addAudMen" placeholder="Men" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            </div>
+                            <button onclick="addAud()" class="w-full bg-yellow-600 text-white p-1 rounded font-bold hover:bg-yellow-500">+ Añadir Auditoría</button>
+                        </div>
+                        <ul id="listAud" class="mt-1 space-y-1 max-h-16 overflow-y-auto"></ul>
+                    </div>
+                    
+                    <!-- Recorridos y 5S -->
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <p class="font-bold text-slate-400">Recorridos (Planta)</p>
+                            <div class="flex items-center space-x-1"><label class="text-[8px]">Realizados:</label><input type="number" id="ehsRec" value="0" class="w-10 p-0.5 rounded bg-slate-900 border border-slate-600 input-trigger text-center"></div>
+                        </div>
+                        <div class="bg-slate-900 p-2 rounded border border-slate-700">
+                            <p class="font-bold text-[9px] mb-1">Clasificar Hallazgo en Recorrido:</p>
+                            <div class="grid grid-cols-2 gap-1 mb-1">
+                                <select id="addHalTipo" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 text-[9px] text-trigger">
+                                    <option value="Seguridad">Seguridad</option><option value="Salud">Salud</option>
+                                </select>
+                                <select id="addHalPel" onchange="actualizarRiesgos()" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 text-[9px] text-trigger">
+                                    <option value="Físico" selected>Peligro Físico</option><option value="Químico">Peligro Químico</option><option value="Biológico">Peligro Biológico</option><option value="Ergonómico">Peligro Ergonómico</option><option value="Psicosocial">Peligro Psicosocial</option><option value="Mecánico">Peligro Mecánico</option><option value="Eléctrico">Peligro Eléctrico</option><option value="Fuego/Explosión">Fuego/Explosión</option><option value="5S">5'S (Orden y Limpieza)</option><option value="Sin Hallazgos">Sin Hallazgos</option>
+                                </select>
+                            </div>
+                            <select id="addHalRie" class="w-full p-1 mb-1 rounded bg-slate-800 text-white border border-slate-600 text-[9px] text-trigger">
+                                <!-- Opciones cargadas por JS -->
+                            </select>
+                            <div class="grid grid-cols-3 gap-1 mb-1">
+                                <div><label class="text-[8px]">Hallazgos Tot.</label><input type="number" id="addHalTot" placeholder="Tot" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                                <div><label class="text-[8px] text-red-400">Abiertos</label><input type="number" id="addHalAbi" placeholder="Abi" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                                <div><label class="text-[8px] text-emerald-400">Cerrados</label><input type="number" id="addHalCer" placeholder="Cer" class="w-full p-1 rounded bg-slate-800 text-white border border-slate-600 input-trigger"></div>
+                            </div>
+                            <button onclick="addHal()" class="w-full bg-emerald-600 text-white p-1 rounded font-bold hover:bg-emerald-500">+ Añadir Hallazgo</button>
+                        </div>
+                        <ul id="listHal" class="mt-1 space-y-1 max-h-24 overflow-y-auto"></ul>
+                    </div>
+                </div>
+            </details>
+        </div>
+    </aside>
+
+    <!-- DASHBOARD CENTRAL -->
+    <main class="flex-1 flex flex-col h-screen overflow-x-hidden overflow-y-auto bg-slate-100">
+        
+        <!-- HEADER DE FILTROS -->
+        <header class="bg-white shadow-sm border-b px-4 py-3 flex justify-between items-center z-10 sticky top-0 no-print">
+            <div class="flex items-center w-1/3">
+                <input type="text" id="nombrePlanta" value="Planta Matriz" oninput="actualizarPlanta()" class="text-xl font-black text-slate-800 bg-transparent border-b-2 border-dashed border-slate-300 focus:border-blue-600 focus:outline-none w-full transition-colors">
+            </div>
+            <div class="flex items-center space-x-2 w-2/3 justify-end">
+                <span class="text-xs font-bold text-slate-500 ml-2">Acumulado Desde:</span>
+                <select id="selMesInicio" onchange="cargarAcumulado()" class="bg-slate-100 p-1.5 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer border border-slate-200">
+                    <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07" selected>Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
+                </select>
+                <select id="selAnoInicio" onchange="cargarAcumulado()" class="bg-slate-100 p-1.5 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer border border-slate-200"></select>
+                
+                <span class="text-xs font-bold text-slate-500">Hasta:</span>
+                <select id="selMesFin" onchange="cargarAcumulado()" class="bg-slate-100 p-1.5 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer border border-slate-200">
+                    <option value="01">Ene</option><option value="02">Feb</option><option value="03">Mar</option><option value="04">Abr</option><option value="05">May</option><option value="06">Jun</option><option value="07" selected>Jul</option><option value="08">Ago</option><option value="09">Sep</option><option value="10">Oct</option><option value="11">Nov</option><option value="12">Dic</option>
+                </select>
+                <select id="selAnoFin" onchange="cargarAcumulado()" class="bg-slate-100 p-1.5 rounded-lg text-xs font-bold text-slate-700 focus:outline-none cursor-pointer border border-slate-200"></select>
+                
+                <button onclick="exportarPDF()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow transition ml-2">⬇ PDF</button>
+                <button onclick="exportarPPT()" class="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-1.5 px-3 rounded-lg shadow transition">⬇ PPT</button>
+            </div>
+        </header>
+
+        <!-- ÁREA EXACTA QUE SE EXPORTARÁ -->
+        <div class="p-6" id="export-area">
+            
+            <div class="mb-4 flex items-center justify-between border-b-2 border-slate-800 pb-4">
+                <div class="flex items-center space-x-4">
+                    <img id="logoPrint" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" alt="Logo" class="h-16 w-auto object-contain">
+                </div>
+                <div class="text-right">
+                    <h1 class="text-2xl font-black text-slate-900">Dashboard Operativo Salud Ocupacional</h1>
+                    <h2 class="text-lg font-bold text-blue-600 uppercase" id="printPlanta">PLANTA MATRIZ</h2>
+                    <h3 class="text-xs text-slate-500 font-semibold" id="printTitle">Reporte Acumulado</h3>
+                </div>
+            </div>
+
+            <!-- KPIs OPERATIVOS (VERSIÓN PISO/MÉDICO) -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4 export-card">
+                <div class="bg-white rounded-xl p-3 shadow-sm border-l-4 border-blue-500">
+                    <p class="text-[9px] text-slate-500 font-bold uppercase">Atenciones In-House</p>
+                    <p class="text-xl font-black text-blue-600" id="kpiAtenciones">0</p>
+                    <p class="text-[9px] text-slate-500 mt-1 font-bold">Horas Hombre Salvadas: <span id="kpiHrsSalvadas" class="text-blue-500">0</span></p>
+                    <p class="text-[8px] text-slate-400 leading-tight">Evitando ausentismo IMSS</p>
+                </div>
+                <div class="bg-white rounded-xl p-3 shadow-sm border-l-4 border-orange-500">
+                    <p class="text-[9px] text-slate-500 font-bold uppercase">Ahorro Prima de Riesgo</p>
+                    <p class="text-xl font-black text-orange-500" id="kpiPrima">$0</p>
+                    <p class="text-[10px] text-orange-600 font-bold mt-1" id="kpiRedPrima">⬇ 0.00% Red. Proyectada</p>
+                    <p class="text-[8px] text-slate-400 leading-tight mt-1">Impacto por Siniestros Contenidos</p>
+                </div>
+                <div class="bg-white rounded-xl p-3 shadow-sm border-l-4 border-purple-500">
+                    <p class="text-[9px] text-slate-500 font-bold uppercase">Horas Equipo SM</p>
+                    <p class="text-xl font-black text-purple-600" id="kpiHrsNum">0 Hrs</p>
+                    <p class="text-[8px] text-slate-400 leading-tight mt-1">Tiempo invertido en recorridos, normas y prevención</p>
+                </div>
+                <div class="bg-slate-800 rounded-xl p-3 shadow-md border-l-4 border-emerald-400 relative overflow-hidden">
+                    <p class="text-[9px] text-emerald-100 font-bold uppercase">Índice Prevención EHS</p>
+                    <div class="flex items-end space-x-2 mt-1">
+                        <p class="text-xl font-black text-emerald-400 leading-none" id="kpiPrevencion">0</p>
+                        <p class="text-[9px] text-emerald-200 font-bold mb-0.5">Hallazgos</p>
+                    </div>
+                    <p class="text-[9px] text-slate-300 font-bold mt-1">Total Recorridos: <span id="kpiRecorridosCard" class="text-white">0</span></p>
+                    <div class="mt-1.5 flex space-x-2 items-center">
+                        <p class="text-[9px] text-white font-bold bg-emerald-500 px-1.5 py-0.5 rounded" id="kpiCerrados">Cerrados: 0</p>
+                        <p class="text-[9px] text-white font-bold bg-red-500 px-1.5 py-0.5 rounded" id="kpiAbiertos">Abiertos: 0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FILA 2: REGISTRO Y EXÁMENES -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div id="cardTotales" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">⚕️ Totales Atención y PA</h3>
+                        <button onclick="copyCard('cardTotales')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartTotales"></canvas></div>
+                </div>
+                <div id="cardSistemas" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">⚕ Morbilidad por Aparatos</h3>
+                        <button onclick="copyCard('cardSistemas')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartSistemas"></canvas></div>
+                </div>
+                <div id="cardExamenes" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">📋 Resultados EMI / EMP</h3>
+                        <button onclick="copyCard('cardExamenes')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartExamenes"></canvas></div>
+                </div>
+            </div>
+
+            <!-- FILA 3: POES Y AUSENTISMO -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div id="cardPoes" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 lg:col-span-2 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🏭 Exposición POES (Realizados)</h3>
+                        <button onclick="copyCard('cardPoes')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartPoes"></canvas></div>
+                </div>
+                <div id="cardAusentismo" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🤕 Incapacidades y Restr.</h3>
+                        <button onclick="copyCard('cardAusentismo')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartAusentismo"></canvas></div>
+                </div>
+            </div>
+
+            <!-- FILA 4: ST Y ACCIDENTES -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                <div id="cardSt" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🚨 ST Calificados (IMSS)</h3>
+                        <button onclick="copyCard('cardSt')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartSt"></canvas></div>
+                </div>
+                <div id="cardAccidentes" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">⚠️ Accidentes Internos</h3>
+                        <div class="flex space-x-2 items-center">
+                            <span id="badgeAccTotal" class="text-[9px] font-bold text-white bg-red-500 px-2 py-0.5 rounded">Total: 0</span>
+                            <button onclick="copyCard('cardAccidentes')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartAccidentes"></canvas></div>
+                </div>
+            </div>
+
+            <!-- FILA 5: EPIDEMIOLOGÍA, PSICO, ERGO -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <div id="cardEpi" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">❤️ Crónicas/Maternidad</h3>
+                        <button onclick="copyCard('cardEpi')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartEpi"></canvas></div>
+                </div>
+                <div id="cardPsico" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🧠 Psicosociales (NOM-035)</h3>
+                        <div class="flex space-x-2 items-center">
+                            <span id="badgePsiTotal" class="text-[9px] font-bold text-white bg-indigo-500 px-2 py-0.5 rounded">Casos: 0</span>
+                            <button onclick="copyCard('cardPsico')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartPsico"></canvas></div>
+                </div>
+                <div id="cardErgo" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🦴 Ergonómicos (NOM-036)</h3>
+                        <div class="flex space-x-2 items-center">
+                            <span id="badgeErgTotal" class="text-[9px] font-bold text-white bg-teal-500 px-2 py-0.5 rounded">Casos: 0</span>
+                            <button onclick="copyCard('cardErgo')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartErgo"></canvas></div>
+                </div>
+            </div>
+
+            <!-- FILA 6: EHS Y COMEDOR -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                <div id="cardPermisos" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[9px] font-bold text-slate-800 uppercase" title="NOM-004/009/027/029/033">🛡 Permisos STPS</h3>
+                        <div class="flex space-x-1 items-center">
+                            <span id="badgePerTotal" class="text-[8px] font-bold text-white bg-blue-500 px-1 py-0.5 rounded">Perm: 0 | Ev: 0</span>
+                            <button onclick="copyCard('cardPermisos')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartPermisos"></canvas></div>
+                </div>
+                <div id="cardAuditorias" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 lg:col-span-2 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🛡️ Auditorías Externas Atendidas</h3>
+                        <div class="flex space-x-2 items-center">
+                            <span id="badgeAudTotal" class="text-[9px] font-bold text-white bg-yellow-500 px-2 py-0.5 rounded">Total: 0</span>
+                            <button onclick="copyCard('cardAuditorias')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartAuditorias"></canvas></div>
+                </div>
+                <div id="cardNutri" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🍏 Nutrición</h3>
+                        <button onclick="copyCard('cardNutri')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                    </div>
+                    <div class="chart-wrapper"><canvas id="chartNutri"></canvas></div>
+                </div>
+            </div>
+            
+            <!-- FILA 7: RECORRIDOS -->
+            <div class="grid grid-cols-1 gap-3">
+                <div id="cardHallazgos" class="bg-white rounded-xl p-3 shadow-sm border border-slate-200 export-card">
+                    <div class="flex justify-between items-center border-b pb-1 mb-2">
+                        <h3 class="text-[10px] font-bold text-slate-800 uppercase">🛡️ Hallazgos Recorridos y 5'S</h3>
+                        <div class="flex space-x-2 items-center">
+                            <span id="badgeRecTotal" class="text-[9px] font-bold text-white bg-slate-600 px-2 py-0.5 rounded">Recorridos: 0</span>
+                            <span id="badgeHalAbi" class="text-[9px] font-bold text-white bg-red-500 px-2 py-0.5 rounded">Abiertos: 0</span>
+                            <span id="badgeHalCer" class="text-[9px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded">Cerrados: 0</span>
+                            <button onclick="copyCard('cardHallazgos')" class="text-[10px] hover:scale-110 transition no-print" title="Copiar Gráfica">📋</button>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper" style="height: 200px;"><canvas id="chartHallazgos"></canvas></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MOTOR LÓGICO -->
+    <script>
+        try {
+            if(typeof ChartDataLabels !== 'undefined') {
+                Chart.register(ChartDataLabels);
+                Chart.defaults.plugins.datalabels = { 
+                    color: '#1E293B', font: { weight: 'bold', size: 9 }, 
+                    anchor: 'end', align: 'top', offset: 2, 
+                    formatter: (val) => val > 0 ? val : '' 
+                };
+            }
+            Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+            Chart.defaults.color = '#475569';
+            Chart.defaults.maintainAspectRatio = false;
+        } catch(e) { console.error("Error Datalabels:", e); }
+
+        // MÓDULO CARGA DE LOGO EN MEMORIA
+        window.cargarLogoMemoria = function(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64 = e.target.result;
+                document.getElementById('logoPlanta').src = base64;
+                document.getElementById('logoPrint').src = base64;
+                localStorage.setItem('LOGO_CORP_B64', base64);
+            };
+            reader.readAsDataURL(file);
+        };
+
+        const mapaRiesgos = {
+            'Físico': ['Caída/Resbalón', 'Hipoacusia', 'Quemadura térmica', 'Golpe/Impacto', 'Vibración', 'Otro Físico'],
+            'Químico': ['Intoxicación', 'Quemadura Química', 'Alergia/Derm.', 'Inhalación gases', 'Otro Químico'],
+            'Biológico': ['Infección', 'Enf. Viral/Bact.', 'Pinchazo aguja', 'Otro Biológico'],
+            'Ergonómico': ['Lumbalgia/TME', 'Fatiga Muscular', 'Mov. Repetitivo', 'Postura Forzada', 'Sobreesfuerzo', 'Otro Erg.'],
+            'Psicosocial': ['Estrés Laboral', 'Fatiga Mental', 'Ansiedad/Burnout', 'Acoso', 'Violencia Laboral', 'Otro Psico.'],
+            'Mecánico': ['Atrapamiento', 'Corte/Amputación', 'Aplastamiento', 'Proy. partíc.', 'Otro Mec.'],
+            'Eléctrico': ['Choque Eléc.', 'Quemadura Arco', 'Electrocución', 'Otro Eléctrico'],
+            'Fuego/Explosión': ['Quemadura Múlt.', 'Asfixia humo', 'Trauma onda', 'Otro Fuego'],
+            '5S': ['Seiri (Clasificar)', 'Seiton (Ordenar)', 'Seiso (Limpiar)', 'Seiketsu (Estandarizar)', 'Shitsuke (Disciplina)', 'Otra desviación 5S'],
+            'Sin Hallazgos': ['Recorrido Limpio (Cero Hallazgos)']
+        };
+
+        window.actualizarRiesgos = function() {
+            try {
+                const pel = document.getElementById('addHalPel').value;
+                const selRie = document.getElementById('addHalRie');
+                if(!selRie) return;
+                selRie.innerHTML = '';
+                (mapaRiesgos[pel] || []).forEach(r => { selRie.add(new Option(r, r)); });
+                
+                if(pel === 'Sin Hallazgos') {
+                    document.getElementById('addHalTot').value = 0;
+                    document.getElementById('addHalAbi').value = 0;
+                    document.getElementById('addHalCer').value = 0;
+                }
+            } catch(e){}
+        }
+
+        window.actualizarPlanta = function() {
+            const pName = document.getElementById('nombrePlanta').value;
+            if(document.getElementById('printPlanta')) {
+                document.getElementById('printPlanta').innerText = pName;
+            }
+        };
+
+        window.checkPsiOtr = function() { document.getElementById('addPsiOtr').style.display = document.getElementById('addPsiSel').value === 'Otro' ? 'block' : 'none'; }
+        window.checkErgOtr = function() { document.getElementById('addErgOtr').style.display = document.getElementById('addErgSel').value === 'Otro' ? 'block' : 'none'; }
+
+        let dynAcc=[]; let dynCro=[]; let dynPsi=[]; let dynErg=[]; let dynAud=[]; let dynHal=[]; let dynPer=[];
+
+        const ctx = (id) => document.getElementById(id).getContext('2d');
+        const cfgBar = { y: { beginAtZero: true, grace: '20%' }, x:{ ticks: {font:{size:8}, autoSkip: false}} };
+        const createBar = (id, labels, color) => new Chart(ctx(id), { type: 'bar', data: { labels, datasets: [{ data:[], backgroundColor: color, borderRadius: 2 }] }, options: { plugins: { legend: { display: false } }, scales: cfgBar } });
+        const createGroupBar = (id, labels, dsData) => new Chart(ctx(id), { type: 'bar', data: { labels, datasets: dsData }, options: { plugins: { legend: { position: 'bottom', labels: {boxWidth: 8, font:{size:8}} } }, scales: cfgBar } });
+
+        let chartTotales, chartSistemas, chartExamenes, chartPoes, chartAusentismo, chartSt, chartAccidentes, chartEpi, chartPsico, chartErgo, chartNutri, chartPermisos, chartAuditorias, chartHallazgos;
+
+        try {
+            chartTotales = createBar('chartTotales', ['1ra Vez', 'Subsec.', 'P. Aux.'], ['#3B82F6', '#60A5FA', '#93C5FD']);
+            chartSistemas = createBar('chartSistemas', ['Oft','Res','Dig','Vas','Cro','Neu','Den','Mus','Gin','Der','Uri','Otr'], '#8B5CF6');
+            chartExamenes = createGroupBar('chartExamenes', ['EMI', 'EMP'], [{ label: 'Tot/Prog', data: [], backgroundColor: '#94A3B8' }, { label: 'Aptos/Real', data: [], backgroundColor: '#10B981' }, { label: 'Restr/Falt', data: [], backgroundColor: '#F59E0B' }, { label: 'No Aptos', data: [], backgroundColor: '#EF4444' }]);
+            chartPoes = createBar('chartPoes', ['Vis','Card','BH','Gluc','Col','Uro','Dop','RxT','RxC','Camp','Aud','Esp','EKG','Pos','Otr'], '#0EA5E9');
+            chartAusentismo = createGroupBar('chartAusentismo', ['Enf. Gral', 'Maternidad', 'Restricción'], [{ label: 'Casos/Recib', data: [], backgroundColor: '#94A3B8'}, { label: 'Días Acum', data: [], backgroundColor: '#F43F5E'}]);
+            chartSt = createGroupBar('chartSt', ['ST-7 Trab', 'ST-7 Tray', 'ST-9'], [{ label: 'Recibidas', data: [], backgroundColor: '#94A3B8'}, { label: 'Días Acum', data: [], backgroundColor: '#64748B'}, { label: 'Calif SI', data: [], backgroundColor: '#10B981'}, { label: 'Calif NO', data: [], backgroundColor: '#EF4444'}]);
+            chartAccidentes = createBar('chartAccidentes', [], '#F59E0B');
+            chartEpi = createGroupBar('chartEpi', ['DM2', 'HAS', 'Gestantes', 'Lactantes'], [{ label: 'Activos', data: [], backgroundColor: '#3B82F6'}, { label: 'Nuevos', data: [], backgroundColor: '#F43F5E'}]);
+            chartPsico = createGroupBar('chartPsico', [], [{ label: 'Activos', data: [], backgroundColor: '#6366F1'}, { label: 'Nuevos', data: [], backgroundColor: '#A855F7'}, { label: 'Rel. Trabajo', data: [], backgroundColor: '#F59E0B'}, { label: 'Restricción', data: [], backgroundColor: '#EF4444'}]);
+            chartErgo = createGroupBar('chartErgo', [], [{ label: 'Activos', data: [], backgroundColor: '#14B8A6'}, { label: 'Nuevos', data: [], backgroundColor: '#0D9488'}, { label: 'Rel. Trabajo', data: [], backgroundColor: '#F59E0B'}, { label: 'Restricción', data: [], backgroundColor: '#EF4444'}]);
+            chartNutri = createBar('chartNutri', ['Cons', 'Planes', 'Obes.', 'S.Peso', 'Dislip.', 'Aud.Com'], ['#84CC16', '#A3E635', '#EF4444', '#F59E0B', '#8B5CF6', '#10B981']);
+            chartPermisos = createBar('chartPermisos', [], '#3B82F6');
+            chartAuditorias = createGroupBar('chartAuditorias', [], [{ label: 'Tot Hzg', data: [], backgroundColor: '#94A3B8'}, { label: 'Mayores', data: [], backgroundColor: '#EF4444'}, { label: 'Menores', data: [], backgroundColor: '#F59E0B'}]);
+            chartHallazgos = createGroupBar('chartHallazgos', [], [{ label: 'Totales', data: [], backgroundColor: '#94A3B8'}, { label: 'Abiertos', data: [], backgroundColor: '#EF4444'}, { label: 'Cerrados', data: [], backgroundColor: '#10B981'}]);
+        } catch(e){}
+
+        function getStorageKey(m, y) { 
+            let pName = document.getElementById('nombrePlanta') ? document.getElementById('nombrePlanta').value.replace(/\s+/g,'_') : 'Planta';
+            return `OPS_${pName}_${y}_${m}`; 
+        }
+
+        const getNum = (id) => { const el = document.getElementById(id); return el ? Number(el.value) || 0 : 0; };
+        const getStr = (id) => { const el = document.getElementById(id); return el ? el.value : ""; };
+
+        function renderList(list, containerId, formatFn, removeFnName) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = list.map((item, i) => 
+                `<li class="flex justify-between items-center bg-slate-800 p-1 mb-1 rounded border border-slate-700 text-[9px] text-slate-300">
+                    <span class="truncate pr-1">${formatFn(item)}</span>
+                    <button onclick="${removeFnName}(${i})" class="text-red-400 hover:text-red-300 font-bold px-1.5 rounded bg-slate-900 border border-slate-600">X</button>
+                </li>`
+            ).join('');
+        }
+
+        window.addAcc = function() {
+            dynAcc.push({ area: getStr('addAccArea')||'SinÁrea', dep: getStr('addAccDep')||'SinDep', pto: getStr('addAccPto')||'SinPto', tur: getStr('addAccTur')||'1er Turno' });
+            document.getElementById('addAccArea').value=''; document.getElementById('addAccDep').value=''; document.getElementById('addAccPto').value=''; actualizarTodo();
+        }
+        window.remAcc = function(i) { dynAcc.splice(i, 1); actualizarTodo(); }
+
+        window.addCro = function() {
+            let nom = getStr('addCroNom');
+            if(nom) { dynCro.push({ nom, act: getNum('addCroAct'), nue: getNum('addCroNue') }); document.getElementById('addCroNom').value=''; document.getElementById('addCroAct').value=''; document.getElementById('addCroNue').value=''; actualizarTodo(); }
+        }
+        window.remCro = function(i) { dynCro.splice(i, 1); actualizarTodo(); }
+
+        window.addPsi = function() {
+            let sel = getStr('addPsiSel'); let nom = sel === 'Otro' ? (getStr('addPsiOtr') || 'Otra') : sel;
+            dynPsi.push({ nom, act: getNum('addPsiAct'), nue: getNum('addPsiNue'), rel: getNum('addPsiRel'), res: getNum('addPsiRes') });
+            document.getElementById('addPsiAct').value=''; document.getElementById('addPsiNue').value=''; document.getElementById('addPsiRel').value=''; document.getElementById('addPsiRes').value=''; document.getElementById('addPsiOtr').value=''; actualizarTodo();
+        }
+        window.remPsi = function(i) { dynPsi.splice(i, 1); actualizarTodo(); }
+
+        window.addErg = function() {
+            let sel = getStr('addErgSel'); let nom = sel === 'Otro' ? (getStr('addErgOtr') || 'Otra') : sel;
+            dynErg.push({ nom, act: getNum('addErgAct'), nue: getNum('addErgNue'), rel: getNum('addErgRel'), res: getNum('addErgRes') });
+            document.getElementById('addErgAct').value=''; document.getElementById('addErgNue').value=''; document.getElementById('addErgRel').value=''; document.getElementById('addErgRes').value=''; document.getElementById('addErgOtr').value=''; actualizarTodo();
+        }
+        window.remErg = function(i) { dynErg.splice(i, 1); actualizarTodo(); }
+
+        window.addAud = function() {
+            dynAud.push({ ent: getStr('addAudEnt') || 'STPS', hal: getNum('addAudHal'), may: getNum('addAudMay'), men: getNum('addAudMen') }); 
+            document.getElementById('addAudHal').value=''; document.getElementById('addAudMay').value=''; document.getElementById('addAudMen').value=''; actualizarTodo();
+        }
+        window.remAud = function(i) { dynAud.splice(i, 1); actualizarTodo(); }
+
+        window.addHal = function() {
+            dynHal.push({ tipo: getStr('addHalTipo') || 'Seguridad', pel: getStr('addHalPel') || 'Físico', ri: getStr('addHalRie') || 'Otro', tot: getNum('addHalTot'), abi: getNum('addHalAbi'), cer: getNum('addHalCer') });
+            document.getElementById('addHalTot').value=''; document.getElementById('addHalAbi').value=''; document.getElementById('addHalCer').value=''; actualizarTodo();
+        }
+        window.remHal = function(i) { dynHal.splice(i, 1); actualizarTodo(); }
+
+        window.addPer = function() {
+            dynPer.push({tipo: getStr('addPerTipo') || 'Alturas', can: getNum('addPerCan'), eva: getNum('addPerEval')}); 
+            document.getElementById('addPerCan').value=''; document.getElementById('addPerEval').value=''; actualizarTodo();
+        }
+        window.remPer = function(i) { dynPer.splice(i, 1); actualizarTodo(); }
+
+        window.guardarDatos = function() {
+            if(document.getElementById('btnGuardar').disabled) return;
+            const m = getStr('capMes');
+            const y = getStr('capAno');
+            const data = { inputs: {}, dynAcc, dynCro, dynPsi, dynErg, dynAud, dynHal, dynPer };
+            document.querySelectorAll('.input-trigger').forEach(inp => { if(inp.id) data.inputs[inp.id] = inp.value; });
+            localStorage.setItem(getStorageKey(m, y), JSON.stringify(data));
+            alert("✅ Datos guardados y actualizados con éxito.");
+            cargarAcumulado();
+        }
+        
+        window.exportarJSON = function() {
+            const m = getStr('capMes'); const y = getStr('capAno');
+            const pName = document.getElementById('nombrePlanta').value.replace(/\s+/g,'_');
+            const dataStr = localStorage.getItem(getStorageKey(m, y));
+            if(!dataStr) { alert('No hay datos guardados para este mes. Da clic en "Guardar Datos" primero.'); return; }
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Cierre_Operativo_${pName}_${y}_${m}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        // MÓDULO IMPORTAR JSON (Para Supervisores)
+        window.importarJSON = function(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Llenar inputs numéricos
+                    for(let key in data.inputs) {
+                        let el = document.getElementById(key);
+                        if(el) el.value = data.inputs[key];
+                    }
+                    // Llenar listas dinámicas
+                    dynAcc = data.dynAcc || [];
+                    dynCro = data.dynCro || [];
+                    dynPsi = data.dynPsi || [];
+                    dynErg = data.dynErg || [];
+                    dynAud = data.dynAud || [];
+                    dynHal = data.dynHal || [];
+                    dynPer = data.dynPer || [];
+                    
+                    // Intentar sacar el nombre de la planta y fecha del archivo (Ej. Cierre_Operativo_Magna_2026_09.json)
+                    let nombreArchivo = file.name.replace('.json', '');
+                    let partes = nombreArchivo.split('_');
+                    if(partes.length >= 4) {
+                        let y = partes[partes.length - 2];
+                        let m = partes[partes.length - 1];
+                        
+                        // Si el archivo viene del formato anterior con "AMI", ajustamos el índice
+                        let idxInicio = nombreArchivo.includes('Cierre_Operativo_AMI') ? 3 : 2;
+                        let pName = partes.slice(idxInicio, partes.length - 2).join(' ');
+                        
+                        document.getElementById('nombrePlanta').value = pName.replace(/_/g, ' ').toUpperCase();
+                        if(document.getElementById('selMesInicio')) document.getElementById('selMesInicio').value = m;
+                        if(document.getElementById('selMesFin')) document.getElementById('selMesFin').value = m;
+                        if(document.getElementById('selAnoInicio')) document.getElementById('selAnoInicio').value = y;
+                        if(document.getElementById('selAnoFin')) document.getElementById('selAnoFin').value = y;
+                    }
+                    
+                    actualizarPlanta();
+                    actualizarTodo();
+                    alert("✅ Datos operativos importados correctamente.");
+                } catch(err) {
+                    alert("Error al leer el archivo JSON.");
+                }
+                event.target.value = ''; // Limpiar input para permitir re-subir
+            };
+            reader.readAsText(file);
+        };
+
+        window.cargarMesCaptura = function() {
+            const cM = getStr('capMes');
+            const cY = getStr('capAno');
+            document.getElementById('selMesInicio').value = cM;
+            document.getElementById('selMesFin').value = cM;
+            document.getElementById('selAnoInicio').value = cY;
+            document.getElementById('selAnoFin').value = cY;
+            cargarAcumulado();
+        }
+
+        window.cargarAcumulado = function() {
+            try {
+                let yI = parseInt(getStr('selAnoInicio'));
+                let mI = parseInt(getStr('selMesInicio'));
+                let yF = parseInt(getStr('selAnoFin'));
+                let mF = parseInt(getStr('selMesFin'));
+                
+                if(yI > yF || (yI === yF && mI > mF)) {
+                    document.getElementById('selAnoFin').value = yI;
+                    let mFix = mI < 10 ? '0'+mI : mI.toString();
+                    document.getElementById('selMesFin').value = mFix;
+                    yF = yI; mF = mI;
+                }
+                
+                let esAcumulado = (yI !== yF || mI !== mF);
+                let btn = document.getElementById('btnGuardar');
+                let alerta = document.getElementById('txtAlertaGuardar');
+
+                if(esAcumulado) {
+                    btn.disabled = true;
+                    btn.classList.replace('bg-blue-600', 'bg-slate-600');
+                    btn.classList.replace('hover:bg-blue-500', 'cursor-not-allowed');
+                    alerta.classList.remove('hidden');
+                } else {
+                    btn.disabled = false;
+                    btn.classList.replace('bg-slate-600', 'bg-blue-600');
+                    btn.classList.replace('cursor-not-allowed', 'hover:bg-blue-500');
+                    alerta.classList.add('hidden');
+                    let sMes = mI < 10 ? '0'+mI : mI.toString();
+                    document.getElementById('capMes').value = sMes;
+                    document.getElementById('capAno').value = yI;
+                }
+
+                let sumData = { inputs: {}, dynAcc: [], dynCro: [], dynPsi: [], dynErg: [], dynAud: [], dynHal: [], dynPer: [] };
+                document.querySelectorAll('.input-trigger[type="number"]').forEach(inp => sumData.inputs[inp.id] = 0);
+
+                for (let y = yI; y <= yF; y++) {
+                    let startM = (y === yI) ? mI : 1;
+                    let endM = (y === yF) ? mF : 12;
+                    for (let m = startM; m <= endM; m++) {
+                        let mStr = m < 10 ? '0'+m : m.toString();
+                        let raw = localStorage.getItem(getStorageKey(mStr, y.toString()));
+                        if(raw) {
+                            try {
+                                let p = JSON.parse(raw);
+                                for(let k in p.inputs) {
+                                    let domEl = document.getElementById(k);
+                                    if(domEl && domEl.type === 'number') {
+                                        if(['inPlantilla', 'inPrimaBase'].includes(k)) sumData.inputs[k] = Number(p.inputs[k]) || 0; 
+                                        else sumData.inputs[k] += Number(p.inputs[k]) || 0;
+                                    }
+                                }
+                                if(Array.isArray(p.dynAcc)) sumData.dynAcc = sumData.dynAcc.concat(p.dynAcc);
+                                if(Array.isArray(p.dynCro)) sumData.dynCro = sumData.dynCro.concat(p.dynCro);
+                                if(Array.isArray(p.dynPsi)) sumData.dynPsi = sumData.dynPsi.concat(p.dynPsi);
+                                if(Array.isArray(p.dynErg)) sumData.dynErg = sumData.dynErg.concat(p.dynErg);
+                                if(Array.isArray(p.dynAud)) sumData.dynAud = sumData.dynAud.concat(p.dynAud);
+                                if(Array.isArray(p.dynHal)) sumData.dynHal = sumData.dynHal.concat(p.dynHal);
+                                if(Array.isArray(p.dynPer)) sumData.dynPer = sumData.dynPer.concat(p.dynPer);
+                            } catch(errParse) {}
+                        }
+                    }
+                }
+                
+                for(let key in sumData.inputs) { 
+                    let el = document.getElementById(key);
+                    if(el) el.value = sumData.inputs[key]; 
+                }
+                dynAcc = sumData.dynAcc; dynCro = sumData.dynCro; dynPsi = sumData.dynPsi; dynErg = sumData.dynErg; 
+                dynAud = sumData.dynAud; dynHal = sumData.dynHal; dynPer = sumData.dynPer;
+                
+                actualizarTodo();
+            } catch(e) { console.error("Error cargando acumulado:", e); }
+        }
+
+        function actualizarTodo() {
+            try {
+                // Sincronizar nombre de planta en el header del PDF
+                actualizarPlanta();
+                
+                // UI Listas
+                renderList(dynAcc, 'listAcc', a => `[${a.area||'N/A'}] ${a.dep||'N/A'} - P: ${a.pto||'N/A'} (${a.tur||'N/A'})`, 'remAcc');
+                renderList(dynCro, 'listCro', c => `${c.nom||'N/A'} (A:${c.act||0} | N:${c.nue||0})`, 'remCro');
+                renderList(dynPsi, 'listPsi', p => `${p.nom||'N/A'} [Rel:${p.rel||0}|Res:${p.res||0}] A:${p.act||0} N:${p.nue||0}`, 'remPsi');
+                renderList(dynErg, 'listErg', e => `${e.nom||'N/A'} [Rel:${e.rel||0}|Res:${e.res||0}] A:${e.act||0} N:${e.nue||0}`, 'remErg');
+                renderList(dynAud, 'listAud', a => `${a.ent||'N/A'}: ${a.hal||0} Hzg`, 'remAud');
+                renderList(dynHal, 'listHal', a => `${a.tipo||'N/A'} - ${(a.ri||'N/A').substring(0,8)}: ${a.tot||0} Hzg`, 'remHal');
+                renderList(dynPer, 'listPer', p => `${p.tipo||'N/A'}: ${p.can||0} (Ev:${p.eva||0})`, 'remPer');
+
+                // METODOLOGÍA OFICIAL
+                const costoSiniestroEvitado = 45000; 
+                
+                const atenciones = getNum('reg1ra') + getNum('regSub') + getNum('regPa');
+                const stEvitados = getNum('st7trNo') + getNum('st7tyNo') + getNum('st9No');
+                const empFaltantes = (getNum('empProg') - getNum('empReal') > 0) ? (getNum('empProg') - getNum('empReal')) : 0;
+                const examenes = getNum('emiTot') + getNum('empReal');
+                const poes = getNum('poeVis')+getNum('poeCar')+getNum('poeBh')+getNum('poeGlu')+getNum('poeCol')+getNum('poeUro')+getNum('poeDop')+getNum('poeRxt')+getNum('poeRxc')+getNum('poeCam')+getNum('poeAud')+getNum('poeEsp')+getNum('poeEkg')+getNum('poePos')+getNum('poeOtraVal');
+                
+                let audTot = dynAud.length;
+                let recTot = getNum('ehsRec');
+                let halCer = 0; let halAbi = 0; let halTot = 0;
+                dynHal.forEach(a => { halTot+=(a.tot||0); halAbi+=(a.abi||0); halCer+=(a.cer||0); });
+
+                let perTot = 0; let perEvaTot = 0;
+                dynPer.forEach(p => { perTot += (Number(p.can)||0); perEvaTot += (Number(p.eva)||0); });
+
+                const hrsEquipo = (atenciones*0.5) + (examenes*1) + (poes*0.5) + (perTot*0.5) + (perEvaTot*0.5) + (audTot*4) + (recTot*2);
+                const horasSalvadas = atenciones * 8; 
+
+                // Lógica de Prima de Riesgo
+                const primaActual = getNum('inPrimaBase');
+                const plantillaTotal = getNum('inPlantilla');
+                let reduccionPrimaCalculada = 0;
+                if(plantillaTotal > 0) {
+                     reduccionPrimaCalculada = (stEvitados / plantillaTotal) * 2.3; 
+                     if(reduccionPrimaCalculada > primaActual) reduccionPrimaCalculada = primaActual - 0.5; 
+                }
+                
+                const ahorroPrima = stEvitados * costoSiniestroEvitado; 
+                
+                // Inyección DOM Blindada
+                if(document.getElementById('kpiAtenciones')) document.getElementById('kpiAtenciones').innerText = atenciones;
+                if(document.getElementById('kpiHrsSalvadas')) document.getElementById('kpiHrsSalvadas').innerText = `${horasSalvadas.toLocaleString()}`;
+                
+                if(document.getElementById('kpiPrima')) document.getElementById('kpiPrima').innerText = '$' + ahorroPrima.toLocaleString('es-MX');
+                if(document.getElementById('kpiRedPrima')) {
+                    if(stEvitados > 0) {
+                        document.getElementById('kpiRedPrima').innerText = `⬇ ${reduccionPrimaCalculada.toFixed(2)}% Reducción Proyectada`;
+                        document.getElementById('kpiRedPrima').classList.add('text-emerald-500');
+                        document.getElementById('kpiRedPrima').classList.remove('text-orange-600');
+                    } else {
+                        document.getElementById('kpiRedPrima').innerText = `0.00% Reducción Proyectada`;
+                        document.getElementById('kpiRedPrima').classList.remove('text-emerald-500');
+                        document.getElementById('kpiRedPrima').classList.add('text-orange-600');
+                    }
+                }
+
+                if(document.getElementById('kpiHrsNum')) document.getElementById('kpiHrsNum').innerText = `${hrsEquipo.toFixed(1)} Hrs`;
+                
+                // Actualización del KPI de Prevención EHS
+                if(document.getElementById('kpiPrevencion')) document.getElementById('kpiPrevencion').innerText = halTot;
+                if(document.getElementById('kpiRecorridosCard')) document.getElementById('kpiRecorridosCard').innerText = recTot;
+                if(document.getElementById('kpiCerrados')) document.getElementById('kpiCerrados').innerText = `Cerrados: ${halCer}`;
+                if(document.getElementById('kpiAbiertos')) document.getElementById('kpiAbiertos').innerText = `Abiertos: ${halAbi}`;
+
+                // Badges Superiores
+                if(document.getElementById('badgeAudTotal')) document.getElementById('badgeAudTotal').innerText = `Total: ${audTot}`;
+                if(document.getElementById('badgeRecTotal')) document.getElementById('badgeRecTotal').innerText = `Recorridos: ${recTot}`;
+                if(document.getElementById('badgePerTotal')) document.getElementById('badgePerTotal').innerText = `Perm: ${perTot} | Eval: ${perEvaTot}`;
+
+                // Update Gráficas 
+                if(chartTotales) { chartTotales.data.datasets[0].data = [getNum('reg1ra'), getNum('regSub'), getNum('regPa')]; chartTotales.update(); }
+                if(chartSistemas) { chartSistemas.data.datasets[0].data = [getNum('sysOft'), getNum('sysRes'), getNum('sysDig'), getNum('sysVas'), getNum('sysCro'), getNum('sysNeu'), getNum('sysDen'), getNum('sysMus'), getNum('sysGin'), getNum('sysDer'), getNum('sysUri'), getNum('sysOtr')]; chartSistemas.update(); }
+                if(chartExamenes) {
+                    chartExamenes.data.datasets[0].data = [getNum('emiTot'), getNum('empProg')];
+                    chartExamenes.data.datasets[1].data = [getNum('emiApt'), getNum('empReal')];
+                    chartExamenes.data.datasets[2].data = [getNum('emiRes'), empFaltantes];
+                    chartExamenes.data.datasets[3].data = [getNum('emiNo'), 0];
+                    chartExamenes.update();
+                }
+                if(chartPoes) {
+                    chartPoes.data.labels[14] = getStr('poeOtraNom').substring(0,4) || 'Otr';
+                    chartPoes.data.datasets[0].data = [getNum('poeVis'), getNum('poeCar'), getNum('poeBh'), getNum('poeGlu'), getNum('poeCol'), getNum('poeUro'), getNum('poeDop'), getNum('poeRxt'), getNum('poeRxc'), getNum('poeCam'), getNum('poeAud'), getNum('poeEsp'), getNum('poeEkg'), getNum('poePos'), getNum('poeOtraVal')]; 
+                    chartPoes.update();
+                }
+                if(chartAusentismo) {
+                    chartAusentismo.data.datasets[0].data = [getNum('egRec'), getNum('matRec'), getNum('resCasos')];
+                    chartAusentismo.data.datasets[1].data = [getNum('egDias'), getNum('matDias'), getNum('resDias')];
+                    chartAusentismo.update();
+                }
+                if(chartSt) {
+                    chartSt.data.datasets[0].data = [getNum('st7trRec'), getNum('st7tyRec'), getNum('st9Rec')];
+                    chartSt.data.datasets[1].data = [getNum('st7trDias'), getNum('st7tyDias'), getNum('st9Dias')];
+                    chartSt.data.datasets[2].data = [getNum('st7trSi'), getNum('st7tySi'), getNum('st9Si')];
+                    chartSt.data.datasets[3].data = [getNum('st7trNo'), getNum('st7tyNo'), getNum('st9No')];
+                    chartSt.update();
+                }
+                if(chartNutri) { chartNutri.data.datasets[0].data = [getNum('nutCon'), getNum('nutPla'), getNum('nutObe'), getNum('nutSob'), getNum('nutDis'), getNum('comNum')]; chartNutri.update(); }
+
+                if(chartAccidentes) {
+                    let accMap = {}; 
+                    dynAcc.forEach(a => { 
+                        let k = `${a.area||'N/A'}|||${a.dep||'N/A'}|||${a.pto||'N/A'}|||${a.tur||'1er Turno'}`;
+                        accMap[k] = (accMap[k] || 0) + 1; 
+                    });
+                    if(Object.keys(accMap).length > 0) { 
+                        chartAccidentes.data.labels = Object.keys(accMap).map(k => { 
+                            let parts = k.split('|||'); 
+                            return [`${parts[0]} - ${parts[1]}`, parts[2], parts[3]]; 
+                        }); 
+                        chartAccidentes.data.datasets[0].data = Object.values(accMap); 
+                        chartAccidentes.data.datasets[0].backgroundColor = Object.keys(accMap).map(k => {
+                            let t = k.split('|||')[3];
+                            if(t.includes('1er')) return '#3B82F6';
+                            if(t.includes('2do')) return '#F59E0B';
+                            if(t.includes('3er')) return '#8B5CF6';
+                            return '#10B981';
+                        });
+                    } else { 
+                        chartAccidentes.data.labels = ['Ninguno']; chartAccidentes.data.datasets[0].data = [0]; chartAccidentes.data.datasets[0].backgroundColor = ['#CBD5E1'];
+                    }
+                    chartAccidentes.update(); 
+                    if(document.getElementById('badgeAccTotal')) document.getElementById('badgeAccTotal').innerText = `Total: ${getNum('accTot')}`;
+                }
+
+                if(chartEpi) {
+                    let croLabels = ['DM2', 'HAS', 'Gest.', 'Lact.'];
+                    let actData = [getNum('croDmAct'), getNum('croHasAct'), getNum('croGesAct'), getNum('croLacAct')];
+                    let nueData = [getNum('croDmNue'), getNum('croHasNue'), getNum('croGesNue'), getNum('croLacNue')];
+                    let dCro = {}; dynCro.forEach(c => { let n=c.nom||'Desc'; if(!dCro[n]) dCro[n] = {a:0,n:0}; dCro[n].a+=(c.act||0); dCro[n].n+=(c.nue||0); });
+                    for(let nom in dCro) { croLabels.push(nom.substring(0,8)); actData.push(dCro[nom].a); nueData.push(dCro[nom].n); }
+                    chartEpi.data.labels = croLabels; chartEpi.data.datasets[0].data = actData; chartEpi.data.datasets[1].data = nueData; chartEpi.update();
+                }
+
+                if(chartPsico) {
+                    let psiLabels = []; let psiAct = []; let psiNue = []; let psiRel = []; let psiRes = [];
+                    let psiTot=0; let dPsi = {}; 
+                    dynPsi.forEach(p => { 
+                        let n = p.nom || 'Desc'; if(!dPsi[n]) dPsi[n] = {a:0,n:0, rel:0, res:0}; 
+                        dPsi[n].a += (p.act||0); dPsi[n].n += (p.nue||0); 
+                        dPsi[n].rel += (p.rel||0); dPsi[n].res += (p.res||0);
+                        psiTot += (p.act||0) + (p.nue||0);
+                    });
+                    if(Object.keys(dPsi).length === 0) { psiLabels=['Ninguno']; psiAct=[0]; psiNue=[0]; psiRel=[0]; psiRes=[0]; }
+                    else { for(let nom in dPsi) { psiLabels.push(nom.substring(0,10)); psiAct.push(dPsi[nom].a); psiNue.push(dPsi[nom].n); psiRel.push(dPsi[nom].rel); psiRes.push(dPsi[nom].res); } }
+                    chartPsico.data.labels = psiLabels; chartPsico.data.datasets[0].data = psiAct; chartPsico.data.datasets[1].data = psiNue; chartPsico.data.datasets[2].data = psiRel; chartPsico.data.datasets[3].data = psiRes; chartPsico.update();
+                    if(document.getElementById('badgePsiTotal')) document.getElementById('badgePsiTotal').innerText = `Casos: ${psiTot}`;
+                }
+
+                if(chartErgo) {
+                    let ergLabels = []; let ergAct = []; let ergNue = []; let ergRel = []; let ergRes = [];
+                    let ergTot=0; let dErg = {}; 
+                    dynErg.forEach(e => {
+                        let n = e.nom || 'Desc'; if(!dErg[n]) dErg[n] = {a:0, n:0, rel:0, res:0};
+                        dErg[n].a += (e.act||0); dErg[n].n += (e.nue||0);
+                        dErg[n].rel += (e.rel||0); dErg[n].res += (e.res||0);
+                        ergTot += (e.act||0) + (e.nue||0);
+                    });
+                    if(Object.keys(dErg).length === 0) { ergLabels=['Ninguno']; ergAct=[0]; ergNue=[0]; ergRel=[0]; ergRes=[0]; }
+                    else { for(let nom in dErg) { ergLabels.push(nom.substring(0,10)); ergAct.push(dErg[nom].a); ergNue.push(dErg[nom].n); ergRel.push(dErg[nom].rel); ergRes.push(dErg[nom].res); } }
+                    chartErgo.data.labels = ergLabels; chartErgo.data.datasets[0].data = ergAct; chartErgo.data.datasets[1].data = ergNue; chartErgo.data.datasets[2].data = ergRel; chartErgo.data.datasets[3].data = ergRes; chartErgo.update();
+                    if(document.getElementById('badgeErgTotal')) document.getElementById('badgeErgTotal').innerText = `Casos: ${ergTot}`;
+                }
+
+                if(chartPermisos) {
+                    let dPer = {}; dynPer.forEach(p => { let t = p.tipo || 'Desc'; dPer[t] = (dPer[t] || 0) + (p.can||0); });
+                    if(Object.keys(dPer).length > 0) { chartPermisos.data.labels = Object.keys(dPer).map(t=>t.substring(0,10)); chartPermisos.data.datasets[0].data = Object.values(dPer); }
+                    else { chartPermisos.data.labels = ['Ninguno']; chartPermisos.data.datasets[0].data = [0]; }
+                    chartPermisos.update();
+                }
+
+                if(chartAuditorias) {
+                    let dAud = {}; dynAud.forEach(a => { 
+                        let e = a.ent || 'Desc'; if(!dAud[e]) dAud[e] = {h:0, may:0, men:0}; 
+                        dAud[e].h+=(a.hal||0); dAud[e].may+=(a.may||0); dAud[e].men+=(a.men||0); 
+                    });
+                    if(Object.keys(dAud).length > 0) {
+                        chartAuditorias.data.labels = Object.keys(dAud);
+                        chartAuditorias.data.datasets[0].data = Object.values(dAud).map(o=>o.h); chartAuditorias.data.datasets[1].data = Object.values(dAud).map(o=>o.may); chartAuditorias.data.datasets[2].data = Object.values(dAud).map(o=>o.men);
+                    } else {
+                        chartAuditorias.data.labels = ['Ninguna']; chartAuditorias.data.datasets[0].data=[0]; chartAuditorias.data.datasets[1].data=[0]; chartAuditorias.data.datasets[2].data=[0];
+                    }
+                    chartAuditorias.update();
+                }
+
+                if(chartHallazgos) {
+                    let halMap = {}; let halAbi = 0; let halCer = 0;
+                    dynHal.forEach(a => { 
+                        let t = a.tipo || 'Desc'; let p = a.pel || 'Desc'; let r = a.ri || 'Desc';
+                        let k = `${t}: ${p}|||${r}`;
+                        if(!halMap[k]) halMap[k] = {tot:0, ab:0, ce:0}; 
+                        halMap[k].tot+=(a.tot||0); halMap[k].ab+=(a.abi||0); halMap[k].ce+=(a.cer||0); 
+                        halAbi+=(a.abi||0); halCer+=(a.cer||0);
+                    });
+                    if(Object.keys(halMap).length > 0) {
+                        chartHallazgos.data.labels = Object.keys(halMap).map(k=>k.split('|||'));
+                        chartHallazgos.data.datasets[0].data = Object.values(halMap).map(o=>o.tot); chartHallazgos.data.datasets[1].data = Object.values(halMap).map(o=>o.ab); chartHallazgos.data.datasets[2].data = Object.values(halMap).map(o=>o.ce);
+                    } else {
+                        chartHallazgos.data.labels = ['Ninguno']; chartHallazgos.data.datasets[0].data=[0]; chartHallazgos.data.datasets[1].data=[0]; chartHallazgos.data.datasets[2].data=[0];
+                    }
+                    chartHallazgos.update();
+                    if(document.getElementById('badgeHalAbi')) document.getElementById('badgeHalAbi').innerText = `Abiertos: ${halAbi}`;
+                    if(document.getElementById('badgeHalCer')) document.getElementById('badgeHalCer').innerText = `Cerrados: ${halCer}`;
+                }
+
+                let elMI = document.getElementById('selMesInicio'); let elMF = document.getElementById('selMesFin');
+                let elYI = document.getElementById('selAnoInicio'); let elYF = document.getElementById('selAnoFin');
+                if(elMI && elMF && elYI && elYF) {
+                    const mI = elMI.options[elMI.selectedIndex].text; const mF = elMF.options[elMF.selectedIndex].text;
+                    const yI = elYI.value; const yF = elYF.value;
+                    let strRango = (mI === mF && yI === yF) ? `${mI} ${yI}` : `${mI} ${yI} a ${mF} ${yF}`;
+                    if(document.getElementById('printTitle')) document.getElementById('printTitle').innerText = `Acumulado Operativo ${strRango}`;
+                }
+            } catch(e) { console.error("Error Actualizando Interfaz:", e); }
+        }
+
+        // Listener seguro para nombrePlanta
+        document.getElementById('nombrePlanta').addEventListener('input', window.actualizarPlanta);
+        document.querySelectorAll('.input-trigger').forEach(el => { el.addEventListener('input', () => actualizarTodo()); });
+        
+        window.onload = () => { 
+            try {
+                // Recuperar Logo de la Memoria Local
+                const savedLogo = localStorage.getItem('LOGO_CORP_B64');
+                if(savedLogo) {
+                    document.getElementById('logoPlanta').src = savedLogo;
+                    document.getElementById('logoPrint').src = savedLogo;
+                }
+
+                let d = new Date();
+                let currentYear = d.getFullYear().toString();
+                
+                ['capAno', 'selAnoInicio', 'selAnoFin'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if(el && el.options.length === 0) {
+                        for(let i=2025; i<=2035; i++){
+                            let opt = new Option(i, i);
+                            if(i.toString() === currentYear) opt.selected = true;
+                            el.add(opt);
+                        }
+                    }
+                });
+
+                let mesStr = (d.getMonth() + 1).toString().padStart(2, '0');
+                if(document.getElementById('capMes')) document.getElementById('capMes').value = mesStr;
+                if(document.getElementById('selMesInicio')) document.getElementById('selMesInicio').value = mesStr;
+                if(document.getElementById('selMesFin')) document.getElementById('selMesFin').value = mesStr;
+                if(document.getElementById('capAno')) document.getElementById('capAno').value = currentYear;
+                if(document.getElementById('selAnoInicio')) document.getElementById('selAnoInicio').value = currentYear;
+                if(document.getElementById('selAnoFin')) document.getElementById('selAnoFin').value = currentYear;
+                
+                actualizarRiesgos();
+                actualizarPlanta();
+                cargarAcumulado(); 
+            } catch(e) { console.error("Error Onload:", e); }
+        };
+
+        window.copyCard = function(cardId) {
+            const card = document.getElementById(cardId);
+            if(!card) return;
+            const btn = card.querySelector('button');
+            if(btn) btn.style.display = 'none'; 
+            
+            html2canvas(card, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+                if(btn) btn.style.display = 'block'; 
+                canvas.toBlob(function(blob) {
+                    try {
+                        const item = new ClipboardItem({ 'image/png': blob });
+                        navigator.clipboard.write([item]).then(() => alert('✅ Gráfica y título copiados')).catch(e => alert('Copia fallida. Intenta Ctrl+C sobre la imagen.'));
+                    } catch(e) { alert('Copia fallida.'); }
+                });
+            });
+        }
+
+        window.exportarPDF = function() {
+            const pName = document.getElementById('nombrePlanta').value.replace(/\s+/g,'_');
+            const opt = {
+                margin:       [0.3, 0.3], 
+                filename:     `Reporte_Salud_Operativo_${pName}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' },
+                pagebreak:    { mode: ['avoid-all', 'css'], avoid: '.export-card' }
+            };
+            html2pdf().set(opt).from(document.getElementById('export-area')).save();
+        }
+
+        window.exportarPPT = function() {
+            let pptx = new PptxGenJS();
+            pptx.layout = 'LAYOUT_16x9';
+
+            // Extraer el Logo de la Memoria
+            const base64Logo = localStorage.getItem('LOGO_CORP_B64') || "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+            pptx.defineSlideMaster({
+                title: "CORP_MASTER",
+                background: { color: "FFFFFF" },
+                objects: [
+                    { rect: { x: 0, y: 0, w: "100%", h: 0.6, fill: { color: "0F172A" } } },
+                    { image: { x: 0.1, y: 0.05, w: 1.0, h: 0.5, data: base64Logo } }, // Logo incrustado desde memoria
+                    { text: { text: "Dashboard Operativo | Salud Ocupacional", options: { x: 1.2, y: 0.1, w: 5, h: 0.4, color: "FFFFFF", fontSize: 14, bold: true, fontFace: "Segoe UI" } } },
+                    { rect: { x: 0, y: 5.3, w: "100%", h: 0.3, fill: { color: "F1F5F9" } } },
+                    { text: { text: `Reporte Generado: ${document.getElementById('selMesInicio').options[document.getElementById('selMesInicio').selectedIndex].text} ${document.getElementById('selAnoInicio').value}`, options: { x: 0.3, y: 5.3, w: 4, h: 0.3, color: "64748B", fontSize: 10, fontFace: "Segoe UI" } } }
+                ],
+                slideNumber: { x: 9.0, y: 5.35, color: "64748B", fontSize: 10, fontFace: "Segoe UI" }
+            });
+
+            const fmt = (chart) => {
+                let arr = [];
+                if(!chart) return arr;
+                chart.data.datasets.forEach(ds => {
+                    let d = ds.data.length > 0 ? ds.data : [0];
+                    let l = chart.data.labels.length > 0 ? chart.data.labels.map(lbl => Array.isArray(lbl) ? lbl.join('\n') : String(lbl)) : ["N/A"];
+                    arr.push({ name: ds.label || 'Valor', labels: l, values: d });
+                });
+                return arr;
+            };
+
+            const baseChartOpts = {
+                fontFace: "Segoe UI", titleColor: "1E293B", titleFontSize: 12, titleBold: true, showTitle: true, showLegend: true, legendPos: "b", legendFontSize: 9, legendColor: "64748B", valAxisGridLineShow: true, valAxisGridLineColor: "E2E8F0", valAxisLineShow: false, catAxisLineColor: "94A3B8", dataLabelsPosition: "outEnd", dataLabelFontSize: 9, dataLabelColor: "475569", dataLabelFormatCode: "#,##0" 
+            };
+
+            const plantaName = document.getElementById('nombrePlanta').value.toUpperCase();
+
+            let s1 = pptx.addSlide();
+            s1.background = { color: "0F172A" }; 
+            // Logo gigante en la portada desde memoria
+            s1.addImage({ data: base64Logo, x: 3.5, y: 0.5, w: 3, h: 1.6 });
+            s1.addText("REPORTE OPERATIVO SALUD OCUPACIONAL", { x: 1, y: 2.3, w: 8, fontSize: 28, bold: true, color: "FFFFFF", align: "center", fontFace: "Segoe UI" });
+            s1.addText(plantaName, { x: 1, y: 3.2, w: 8, fontSize: 24, bold: true, color: "3B82F6", align: "center", fontFace: "Segoe UI" });
+
+            let s2 = pptx.addSlide({ masterName: "CORP_MASTER" });
+            s2.addText(`Resumen Clínico y Exámenes - ${plantaName}`, { x: 0.5, y: 0.8, w: 8, fontSize: 18, bold: true, color: "1E293B" });
+            s2.addChart(pptx.charts.BAR, fmt(chartTotales), { ...baseChartOpts, x: 0.5, y: 1.4, w: 4.0, h: 1.8, title: "Totales de Consulta", showLegend: false, chartColors: ["3B82F6"] });
+            s2.addChart(pptx.charts.BAR, fmt(chartSistemas), { ...baseChartOpts, x: 5.0, y: 1.4, w: 4.5, h: 1.8, title: "Aparatos/Sistemas", showLegend: false, chartColors: ["8B5CF6"] });
+            s2.addChart(pptx.charts.BAR, fmt(chartExamenes), { ...baseChartOpts, x: 0.5, y: 3.3, w: 4.0, h: 1.8, title: "EMI / EMP (Faltantes)", chartColors: ["94A3B8", "10B981", "F59E0B", "EF4444"] });
+            s2.addChart(pptx.charts.BAR, fmt(chartPoes), { ...baseChartOpts, x: 5.0, y: 3.3, w: 4.5, h: 1.8, title: "POES", showLegend: false, chartColors: ["0EA5E9"] });
+
+            let s3 = pptx.addSlide({ masterName: "CORP_MASTER" });
+            s3.addText(`Ausentismo y Contención STPS - ${plantaName}`, { x: 0.5, y: 0.8, w: 8, fontSize: 18, bold: true, color: "1E293B" });
+            s3.addChart(pptx.charts.BAR, fmt(chartAusentismo), { ...baseChartOpts, x: 0.5, y: 1.4, w: 4.5, h: 1.8, title: "Incapacidades / Restricciones", chartColors: ["94A3B8", "F43F5E"] });
+            s3.addChart(pptx.charts.BAR, fmt(chartSt), { ...baseChartOpts, x: 5.2, y: 1.4, w: 4.3, h: 1.8, title: "ST IMSS (Contención)", chartColors: ["94A3B8", "64748B", "10B981", "EF4444"] });
+            s3.addChart(pptx.charts.BAR, fmt(chartAccidentes), { ...baseChartOpts, x: 0.5, y: 3.3, w: 4.5, h: 1.8, title: "Accidentes por Detalle", showLegend: false, catAxisLabelFontSize: 8, catAxisLabelAngle: 35 });
+            s3.addChart(pptx.charts.BAR, fmt(chartEpi), { ...baseChartOpts, x: 5.2, y: 3.3, w: 4.3, h: 1.8, title: "Crónicos y Gestantes", chartColors: ["3B82F6", "F43F5E"] });
+
+            let s4 = pptx.addSlide({ masterName: "CORP_MASTER" });
+            s4.addText(`Cumplimiento Normativo (NOMs) e ISO - ${plantaName}`, { x: 0.5, y: 0.8, w: 8, fontSize: 18, bold: true, color: "1E293B" });
+            s4.addChart(pptx.charts.BAR, fmt(chartPsico), { ...baseChartOpts, x: 0.5, y: 1.4, w: 4.5, h: 1.8, title: "Riesgos Psicosociales (NOM-035)", chartColors: ["6366F1", "A855F7", "F59E0B", "EF4444"] });
+            s4.addChart(pptx.charts.BAR, fmt(chartErgo), { ...baseChartOpts, x: 5.2, y: 1.4, w: 4.3, h: 1.8, title: "Riesgos Ergonómicos (NOM-036)", chartColors: ["14B8A6", "0D9488", "F59E0B", "EF4444"] });
+            s4.addChart(pptx.charts.BAR, fmt(chartPermisos), { ...baseChartOpts, x: 0.5, y: 3.3, w: 4.5, h: 1.8, title: "Permisos STPS Liberados", showLegend: false, chartColors: ["3B82F6"] });
+            s4.addChart(pptx.charts.BAR, fmt(chartAuditorias), { ...baseChartOpts, x: 5.2, y: 3.3, w: 4.3, h: 1.8, title: "Auditorías Externas (Hzg)", chartColors: ["94A3B8", "EF4444", "F59E0B"] });
+
+            let s5 = pptx.addSlide({ masterName: "CORP_MASTER" });
+            s5.addText(`Prevención Integral y Recorridos EHS - ${plantaName}`, { x: 0.5, y: 0.8, w: 8, fontSize: 18, bold: true, color: "1E293B" });
+            s5.addChart(pptx.charts.BAR, fmt(chartHallazgos), { ...baseChartOpts, x: 0.5, y: 1.4, w: 4.5, h: 3.7, title: "Hallazgos EHS por Peligro/Riesgo", catAxisLabelFontSize: 8, catAxisLabelAngle: 35, chartColors: ["94A3B8", "EF4444", "10B981"] });
+            s5.addChart(pptx.charts.BAR, fmt(chartNutri), { ...baseChartOpts, x: 5.2, y: 1.4, w: 4.3, h: 3.7, title: "Nutrición / Comedor", showLegend: false, chartColors: ["84CC16"] });
+
+            const pNameSafe = document.getElementById('nombrePlanta').value.replace(/\s+/g, '_');
+            pptx.writeFile({ fileName: `Reporte_Salud_Operativo_${pNameSafe}.pptx` });
+        }
+    </script>
+</body>
+</html>
